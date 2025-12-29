@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 import os
 import pymysql.cursors
 import requests
@@ -19,50 +19,11 @@ import logging
 from confluent_kafka import Producer
 import json
 
-# Configurazione producer
-KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:9092")
-producer_config = {
-    'bootstrap.servers': KAFKA_BROKER,
-    'acks': 'all',
-    'retries': 3,
-    'linger.ms': 10,
-    'batch.size': 16000,
-    'max.in.flight.requests.per.connection': 1
-}
-
-producer = Producer(producer_config)
-TOPIC_ALERT = "to-alert-system"
-
-# Callback per confermare la consegna del messaggio su to-alert-system
-def delivery_report(err, msg):
-    if err is not None:
-        logging.error(f"Errore nell'invio: {err}")
-    else:
-        logging.info(f"Messaggio consegnato a {msg.topic()}")
-
-# Funzione per inviare un messaggio su to-alert-system
-def send_kafka_message(message):
-    if not message:
-        return
-
-    try:
-        producer.produce(
-            TOPIC_ALERT,
-            json.dumps(message).encode("utf-8"),
-            callback=delivery_report
-        )
-
-        producer.poll(0)
-
-    except BufferError:
-        logging.error("Buffer pieno, il messaggio non è stato accodato")
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(asctime)s] [%(levelname)s] %(message)s',
-)
+import prometheus_client
 
 app = Flask(__name__)
+
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] [%(levelname)s] %(message)s',)
 
 LISTEN_PORT = int(os.getenv("LISTEN_PORT", 5002))
 LISTEN_PORT_GRPC = int(os.getenv("LISTEN_PORT_GRPC=50052", 50052))
@@ -88,6 +49,64 @@ TIMEOUT_SECONDS = 10
 USER_MANAGER_ADDRESS = f"{GRPC_HOST}:{GRPC_SEND_PORT}"
 
 circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=5, expected_exception=requests.exceptions.RequestException)
+
+# Configurazione producer Kafka
+KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:9092")
+
+producer_config = {
+    'bootstrap.servers': KAFKA_BROKER,
+    'acks': 'all',
+    'retries': 3,
+    'linger.ms': 10,
+    'batch.size': 16000,
+    'max.in.flight.requests.per.connection': 1
+}
+
+producer = Producer(producer_config)
+TOPIC_ALERT = "to-alert-system"
+
+# Aggiunti ora
+SERVICE_NAME = "data-collector"
+NODE_NAME = os.getenv("NODE_NAME", "unknown-node") # ???
+
+# Metriche Prometheus
+KAFKA_SENT_MESSAGES = prometheus_client.Counter(
+    'kafka_messages_total',
+    'Numero totale dei messaggi pubblicati dal data-collector sul topic to-alert-system',
+    ["service", "node"]
+)
+
+OPENSKY_FLIGHTS_UPDATE_DURATION = prometheus_client.Gauge(
+    'opensky_flights_update_duration_seconds',
+    'Durata chiamata opensky per aggiornamento dei voli',
+    ["service", "node", "endpoint"]
+)
+
+# Callback per confermare la consegna del messaggio su to-alert-system
+def delivery_report(err, msg):
+    if err is not None:
+        logging.error(f"Errore nell'invio: {err}")
+    else:
+        logging.info(f"Messaggio consegnato a {msg.topic()}")
+
+# Funzione per inviare un messaggio su to-alert-system
+def send_kafka_message(message):
+    if not message:
+        return
+
+    try:
+        producer.produce(
+            TOPIC_ALERT,
+            json.dumps(message).encode("utf-8"),
+            callback=delivery_report
+        )
+
+        # Incremento la metrica Prometheus
+        KAFKA_SENT_MESSAGES.labels(service=SERVICE_NAME, node=NODE_NAME).inc()
+
+        producer.poll(0)
+    except BufferError:
+        logging.error("Buffer pieno, il messaggio non è stato accodato")
 
 # Funzione per la connessione al database MySQL
 def get_connection():
@@ -123,8 +142,18 @@ def get_opensky_token():
         "client_secret": OPENSKY_CLIENT_SECRET
     }
 
+    start_time = time.time()
+
     response = requests.post(OPENSKY_TOKEN_ENDPOINT, data=payload, timeout=TIMEOUT_SECONDS)
     response.raise_for_status()
+
+    duration = time.time() - start_time
+
+    OPENSKY_FLIGHTS_UPDATE_DURATION.labels(
+        service=SERVICE_NAME,
+        node=NODE_NAME,
+        endpoint=OPENSKY_TOKEN_ENDPOINT,
+    ).set(duration)
 
     data = response.json()
 
@@ -186,6 +215,8 @@ def update_flights(mysql_conn, email_utente, opensky_endpoint, token):
                 "end": end
             }
 
+            start_time = time.time()
+
             response = requests.get(opensky_endpoint, params=params, headers=headers)
             response.raise_for_status()
 
@@ -203,7 +234,7 @@ def update_flights(mysql_conn, email_utente, opensky_endpoint, token):
                     with mysql_conn.cursor() as cursor:
                         try:
                             sql_flights = ("INSERT IGNORE INTO flight (icao_aereo, first_seen, aeroporto_partenza, "
-                                            "last_seen, aeroporto_arrivo) VALUES (%s, %s, %s, %s, %s)")
+                                           "last_seen, aeroporto_arrivo) VALUES (%s, %s, %s, %s, %s)")
 
                             cursor.execute(sql_flights, (icao_aereo, first_seen, aeroporto_partenza, last_seen, aeroporto_arrivo))
 
@@ -211,6 +242,14 @@ def update_flights(mysql_conn, email_utente, opensky_endpoint, token):
                         except pymysql.MySQLError as e:
                             mysql_conn.rollback()
                             logging.error(f"Errore nell'inserimento del volo corrente nella tabella flight {e}")
+
+                duration = time.time() - start_time
+
+                OPENSKY_FLIGHTS_UPDATE_DURATION.labels(
+                    service=SERVICE_NAME,
+                    node=NODE_NAME,
+                    endpoint=opensky_endpoint,
+                ).set(duration)
 
                 timestamp = datetime.now().isoformat()
 
@@ -279,6 +318,10 @@ def scheduler_job():
 @app.route("/")
 def home():
     return jsonify({"message": "Hello Data Collector!"}), 200
+
+@app.route("/metrics")
+def metrics():
+    return Response(prometheus_client.generate_latest(), mimetype=prometheus_client.CONTENT_TYPE_LATEST)
 
 @app.route("/user/interests", methods=["POST"])
 def add_interest():
@@ -457,4 +500,7 @@ if __name__ == "__main__":
     # Thread per gRPC
     threading.Thread(target=serve, daemon=True).start()
 
-    app.run(host="0.0.0.0", port=LISTEN_PORT, debug=True)
+    # Avvio il server Prometheus HTTP sulla porta 9999
+    # prometheus_client.start_http_server(9999)
+
+    app.run(host="0.0.0.0", port=LISTEN_PORT, debug=False)

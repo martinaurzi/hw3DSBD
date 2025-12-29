@@ -5,3 +5,4 @@ grpcio-tools
 PyMySQL
 cryptography
 confluent-kafka
+prometheus_client

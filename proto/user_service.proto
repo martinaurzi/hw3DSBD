@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+message UserCheckRequest {
+  string email = 1;
+}
+
+message UserCheckResponse {
+  bool exists = 1; // True = utente esiste nel db
+  string message = 2;
+}
+
+message DeleteUserInterestsResponse {
+  bool deleted = 1;
+  string message = 2;
+}
+
+service UserService {
+  rpc CheckIfUserExists(UserCheckRequest) returns (UserCheckResponse);
+}
+
+service DataService {
+  rpc DeleteUserInterests(UserCheckRequest) returns (DeleteUserInterestsResponse);
+}

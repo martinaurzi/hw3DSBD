@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/alert-notifier-system/alert-notifier-system.iml" filepath="$PROJECT_DIR$/alert-notifier-system/alert-notifier-system.iml" />
+      <module fileurl="file://$PROJECT_DIR$/alert-system/alert-system.iml" filepath="$PROJECT_DIR$/alert-system/alert-system.iml" />
+      <module fileurl="file://$PROJECT_DIR$/data-collector/data-collector.iml" filepath="$PROJECT_DIR$/data-collector/data-collector.iml" />
+      <module fileurl="file://$PROJECT_DIR$/hw1DSBD.iml" filepath="$PROJECT_DIR$/hw1DSBD.iml" />
+      <module fileurl="file://$PROJECT_DIR$/user-manager/user-manager.iml" filepath="$PROJECT_DIR$/user-manager/user-manager.iml" />
+    </modules>
+  </component>
+</project>

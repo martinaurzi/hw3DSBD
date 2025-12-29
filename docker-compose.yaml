@@ -1,0 +1,217 @@
+version: "3.9"
+
+x-common-db-healthcheck: &common-db-healthcheck
+  healthcheck:
+    test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD" ]
+    interval: 5s
+    timeout: 10s
+    retries: 5
+
+x-mysqldb-env: &mysqldb-env
+  MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+  MYSQL_USER: ${MYSQL_USER}
+  MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka
+    ports:
+      - "9092:9092"     # container -> broker
+      - "29092:29092"   # host -> broker
+    environment:
+      # nodo singolo KRaft
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_NODE_ID: 1
+      CLUSTER_ID: ${CLUSTER_ID}
+      KAFKA_CLUSTER_ID: ${KAFKA_CLUSTER_ID}
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+
+      # 9092 per i client interni al container; 29092 per l'host
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://127.0.0.1:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: [ "CMD", "bash", "-c", "kafka-topics --bootstrap-server localhost:9092 --list || exit 1" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      - kafka-net
+
+  apigw:
+    image: nginx1_29
+    build:
+      context: .
+      dockerfile: ./nginx/Dockerfile
+    container_name: nginx
+    ports:
+      - "8080:80"
+      - "8443:443" # HTTPS
+    depends_on:
+      - user-manager
+      - data-collector
+    volumes:
+      - ./nginx/configs/routing.conf:/etc/nginx/conf.d/routing.conf
+      - ./nginx/htpasswd:/etc/nginx/htpasswd
+      # Certificati SSL
+      - ./nginx/ssl/nginx-selfsigned.crt:/etc/nginx/ssl/nginx.selfsigned.crt
+      - ./nginx/ssl/nginx-selfsigned.key:/etc/nginx/ssl/nginx.selfsigned.key
+    networks:
+      - user-net
+      - data-net
+    restart: always
+
+  user-db:
+    <<: *common-db-healthcheck
+    image: mysql:8.0
+    environment:
+      <<: *mysqldb-env
+      MYSQL_DATABASE: ${MYSQL_USER_DB}
+    volumes:
+      - user_db_data:/var/lib/mysql
+      - ./init_user_db.sql:/docker-entrypoint-initdb.d/init_user_db.sql
+    networks:
+      - user-net
+
+  data-db:
+    <<: *common-db-healthcheck
+    image: mysql:8.0
+    environment:
+      <<: *mysqldb-env
+      MYSQL_DATABASE: ${MYSQL_DATA_DB}
+    volumes:
+      - data_db_data:/var/lib/mysql
+      - ./init_data_db.sql:/docker-entrypoint-initdb.d/init_data_db.sql
+    env_file:
+      - .env
+    networks:
+        - data-net
+
+  alert-notifier-system:
+    build:
+      context: .
+      dockerfile: ./alert-notifier-system/Dockerfile
+      args:
+        BUILD_DIR: alert-notifier-system
+    container_name: alert-notifier-system
+    environment:
+      - KAFKA_BROKER=kafka:9092
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: always
+    networks:
+      - kafka-net
+
+  alert-system:
+    build:
+      context: .
+      dockerfile: ./alert-system/Dockerfile
+      args:
+        BUILD_DIR: alert-system
+    container_name: alert-system
+    environment:
+      - KAFKA_BROKER=kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: always
+    networks:
+      - kafka-net
+
+  user-manager:
+    build:
+      context: .
+      dockerfile: ./user-manager/Dockerfile
+      args:
+        BUILD_DIR: user-manager
+    container_name: user-manager
+    ports:
+      - "5003:5003"
+    environment:
+      - MYSQL_HOST=user-db
+      - MYSQL_PORT=3306
+      - MYSQL_USERNAME=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_USER_DB}
+      - LISTEN_PORT=5003 # REST API
+      - LISTEN_PORT_GRPC=50051
+      - GRPC_HOST=data-collector
+      - GRPC_SEND_PORT=50052
+    depends_on:
+      user-db:
+        condition: service_healthy
+    restart: always
+    healthcheck:
+      test: [ "CMD", "bash", "-c", "echo > /dev/tcp/localhost/50051" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    env_file:
+      - .env
+    networks:
+      - user-net
+      - app-net
+
+  data-collector:
+    build:
+      context: .
+      dockerfile: ./data-collector/Dockerfile
+      args:
+        BUILD_DIR: data-collector
+    container_name: data-collector
+    ports:
+      - "5002:5002"
+    environment:
+      - MYSQL_HOST=data-db
+      - MYSQL_PORT=3306
+      - MYSQL_USERNAME=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=dataDb
+      - LISTEN_PORT=5002 # REST API
+      - LISTEN_PORT_GRPC=50052
+      - GRPC_HOST=user-manager
+      - GRPC_SEND_PORT=50051
+      - OPENSKY_CLIENT_ID=${OPENSKY_CLIENT_ID}
+      - OPENSKY_CLIENT_SECRET=${OPENSKY_CLIENT_SECRET}
+      - KAFKA_BROKER=kafka:9092
+    depends_on:
+      user-manager:
+          condition: service_healthy
+      data-db:
+          condition: service_healthy
+      kafka:
+          condition: service_healthy
+    restart: always
+    env_file:
+      - .env
+    networks:
+      - data-net
+      - app-net
+      - kafka-net
+
+volumes:
+  user_db_data:
+  data_db_data:
+  kafka-data:
+
+networks:
+  app-net:
+  data-net:
+  user-net:
+  kafka-net:

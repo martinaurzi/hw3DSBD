@@ -4,3 +4,4 @@ grpcio-tools
 PyMySQL
 bcrypt
 cryptography
+prometheus_client

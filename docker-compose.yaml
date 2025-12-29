@@ -13,6 +13,22 @@ x-mysqldb-env: &mysqldb-env
   MYSQL_PASSWORD: ${MYSQL_PASSWORD}
 
 services:
+  prometheus:
+    image: prom/prometheus:v2.0.0
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    depends_on:
+      - user-manager
+      - data-collector
+    restart: always
+
   kafka:
     image: confluentinc/cp-kafka:7.4.0
     container_name: kafka
@@ -209,6 +225,7 @@ volumes:
   user_db_data:
   data_db_data:
   kafka-data:
+  prometheus_data: {}
 
 networks:
   app-net:

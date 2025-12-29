@@ -1,6 +1,6 @@
 import logging
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 import os
 import pymysql
 import bcrypt
@@ -9,6 +9,8 @@ import time
 import grpc
 from concurrent import futures
 import threading
+
+import prometheus_client
 
 import user_service_pb2
 import user_service_pb2_grpc
@@ -33,6 +35,21 @@ MYSQL_DATABASE = os.getenv("MYSQL_DATABASE")
 DATA_COLLECTOR_ADDRESS = f"{GRPC_HOST}:{GRPC_SEND_PORT}"
 
 cache_message_ids = {}
+
+SERVICE_NAME = os.getenv("SERVICE_NAME", "unknown-service")
+NODE_NAME = os.getenv("NODE_NAME", "unknown-node")
+
+REQUEST_COUNTER = prometheus_client.Counter(
+    "usermanager_requests_total",
+    "Totale richieste ricevute",
+    ["service", "node", "endpoint"]
+)
+
+DB_QUERY_DURATION = prometheus_client.Gauge(
+    "usermanager_db_query_duration_seconds",
+    "Durata ultima query in secondi",
+    ["service", "node", "operation"]
+)
 
 # Funzione per la connessione al database MySQL
 def get_connection():
@@ -61,12 +78,22 @@ def clear_cache():
 
     threading.Timer(600, clear_cache).start()
 
+@app.route("/metrics")
+def metrics():
+    return Response(
+        prometheus_client.generate_latest(),
+        mimetype="text/plain"
+    )
+
 @app.route("/")
 def home():
     return jsonify({"message": "Hello User Manager!"}), 200
 
 @app.route("/create", methods=["POST"])
 def create_user():
+    start_time = time.time()
+    endpoint = "/create"
+
     data = request.json
 
     message_id = data.get("messageID") # per at-most-once
@@ -74,6 +101,12 @@ def create_user():
     nome = data.get("nome")
     cognome = data.get("cognome")
     password = data.get("password")
+
+    REQUEST_COUNTER.labels(
+        service=SERVICE_NAME,
+        node=NODE_NAME,
+        endpoint=endpoint
+    ).inc()
 
     # Verificare se message_id si trova nella cache
     if message_id and message_id in cache_message_ids:
@@ -117,11 +150,29 @@ def create_user():
 
                 finally:
                     mysql_conn.close()
+
+                    duration = time.time() - start_time
+
+                    DB_QUERY_DURATION.labels(
+                        service=SERVICE_NAME,
+                        node=NODE_NAME,
+                        operation="create_user",
+                    ).set(duration)
         else:
             return jsonify({"error": "Database MySQl non disponibile"}), 503
 
+
 @app.route("/delete/<email>", methods=["DELETE"])
 def delete_user(email):
+    start_time = time.time()
+    endpoint = "/delete/<email>"
+
+    REQUEST_COUNTER.labels(
+        service=SERVICE_NAME,
+        node=NODE_NAME,
+        endpoint=endpoint
+    ).inc()
+
     mysql_conn = get_connection()
 
     if mysql_conn:
@@ -166,6 +217,13 @@ def delete_user(email):
                     return jsonify({"error": "Errore interno del database"}), 500
 
             finally:
+                duration = time.time() - start_time
+
+                DB_QUERY_DURATION.labels(
+                    service=SERVICE_NAME,
+                    node=NODE_NAME,
+                    operation="delete_user"
+                ).set(duration)
                 # garantisce la chiusura della connessione nel caso in cui non sia già stata chiusa
                 try:
                     mysql_conn.close()
@@ -224,5 +282,6 @@ if __name__ == "__main__":
     threading.Thread(target=clear_cache, daemon=True).start()
 
     # Avvia Flask
-    app.run(host="0.0.0.0", port=LISTEN_PORT, debug=True)
+    app.run(host="0.0.0.0", port=LISTEN_PORT, debug=False)
+
 

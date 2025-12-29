@@ -224,6 +224,7 @@ def update_flights(mysql_conn, email_utente, opensky_endpoint, token):
                     "timestamp": timestamp
                 }
                 send_kafka_message(message)
+
     else:
         logging.error("Token OpenSky non valido")
 

@@ -82,6 +82,12 @@ OPENSKY_FLIGHTS_UPDATE_DURATION = prometheus_client.Gauge(
     ["service", "node", "endpoint"]
 )
 
+OPENSKY_GET_TOKEN_DURATION = prometheus_client.Gauge(
+    'opensky_get_token_duration',
+    'Durata chiamata opensky per ottenere il token',
+    ["service", "node"]
+)
+
 # Callback per confermare la consegna del messaggio su to-alert-system
 def delivery_report(err, msg):
     if err is not None:
@@ -149,10 +155,9 @@ def get_opensky_token():
 
     duration = time.time() - start_time
 
-    OPENSKY_FLIGHTS_UPDATE_DURATION.labels(
+    OPENSKY_GET_TOKEN_DURATION.labels(
         service=SERVICE_NAME,
         node=NODE_NAME,
-        endpoint=OPENSKY_TOKEN_ENDPOINT,
     ).set(duration)
 
     data = response.json()

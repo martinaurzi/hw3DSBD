@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apigw
+  namespace: dsbd-hw3
+  labels:
+    app: apigw
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: apigw
+  template:
+    metadata:
+      labels:
+        app: apigw
+    spec:
+      containers:
+        - name: apigw
+          image: apigw:hw3
+          ports:
+            - containerPort: 80
+            - containerPort: 443
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d
+          # se usi certificati self-signed nel container, puoi montarli qui
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: apigw-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apigw
+  namespace: dsbd-hw3
+spec:
+  type: NodePort
+  selector:
+    app: apigw
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080
+    - port: 443
+      targetPort: 443
+      nodePort: 30443

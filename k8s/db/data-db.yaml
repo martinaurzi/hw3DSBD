@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-db
+  namespace: dsbd-hw3
+  labels:
+    app: data-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: data-db
+  template:
+    metadata:
+      labels:
+        app: data-db
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: mysql-root-password
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: mysql-username
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: mysql-password
+            - name: MYSQL_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: MYSQL_DATA_DB
+          volumeMounts:
+            - name: data-db-storage
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: data-db-storage
+          persistentVolumeClaim:
+            claimName: data-db-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-db
+  namespace: dsbd-hw3
+spec:
+  selector:
+    app: data-db
+  ports:
+    - port: 3306
+      targetPort: 3306

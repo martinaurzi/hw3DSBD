@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-manager
+  namespace: dsbd-hw3
+  labels:
+    app: user-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-manager
+  template:
+    metadata:
+      labels:
+        app: user-manager
+    spec:
+      containers:
+        - name: user-manager
+          image: user-manager:hw3
+          ports:
+            - containerPort: 5003   # REST
+            - containerPort: 50051  # gRPC
+          env:
+            - name: MYSQL_HOST
+              value: "user-db"
+            - name: MYSQL_PORT
+              value: "3306"
+            - name: MYSQL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: mysql-username
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: mysql-password
+            - name: MYSQL_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: MYSQL_USER_DB
+            - name: LISTEN_PORT
+              value: "5003"
+            - name: LISTEN_PORT_GRPC
+              value: "50051"
+            - name: GRPC_HOST
+              value: "data-collector"
+            - name: GRPC_SEND_PORT
+              value: "50052"
+            - name: SERVICE_NAME
+              value: "user-manager"
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-manager
+  namespace: dsbd-hw3
+spec:
+  selector:
+    app: user-manager
+  ports:
+    - name: http
+      port: 5003
+      targetPort: 5003
+    - name: grpc
+      port: 50051
+      targetPort: 50051

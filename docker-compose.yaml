@@ -14,12 +14,12 @@ x-mysqldb-env: &mysqldb-env
 
 services:
   prometheus:
-    image: prom/prometheus:v2.0.0
+    image: prom/prometheus
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml
       - prometheus_data:/prometheus
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--config.file=/etc/prometheus/prometheus.yaml'
       - '--storage.tsdb.path=/prometheus'
       - '--web.enable-lifecycle'
     ports:
@@ -28,6 +28,8 @@ services:
       - user-manager
       - data-collector
     restart: always
+    networks:
+      - app-net
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0

@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apigw-config
+  namespace: dsbd-hw3
+data:
+  routing.conf: |
+    server {
+      listen 80;
+      server_name my_apigw.com;
+
+      location / {
+        proxy_pass http://user-manager:5003;
+      }
+
+      location /users {
+        proxy_pass http://user-manager:5003/;
+      }
+
+      location /data {
+        proxy_pass http://data-collector:5002/;
+      }
+    }
+
+#si dovrebbero gestire i certificati per https

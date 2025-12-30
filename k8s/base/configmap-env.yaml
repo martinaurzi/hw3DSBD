@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: dsbd-hw3
+data:
+  MYSQL_USER_DB: "userDb"
+  MYSQL_DATA_DB: "dataDb"
+  KAFKA_BROKER: "kafka:9092"

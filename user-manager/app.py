@@ -36,8 +36,9 @@ DATA_COLLECTOR_ADDRESS = f"{GRPC_HOST}:{GRPC_SEND_PORT}"
 
 cache_message_ids = {}
 
-SERVICE_NAME = os.getenv("SERVICE_NAME", "unknown-service")
-NODE_NAME = os.getenv("NODE_NAME", "unknown-node")
+# Metriche Prometheus
+SERVICE_NAME = os.getenv("SERVICE_NAME", "user-manager-service")
+NODE_NAME = os.getenv("NODE_NAME", "user-manager-node")
 
 REQUEST_COUNTER = prometheus_client.Counter(
     "usermanager_requests_total",

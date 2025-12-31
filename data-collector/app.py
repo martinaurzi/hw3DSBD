@@ -65,11 +65,10 @@ producer_config = {
 producer = Producer(producer_config)
 TOPIC_ALERT = "to-alert-system"
 
-# Aggiunti ora
-SERVICE_NAME = "data-collector"
-NODE_NAME = os.getenv("NODE_NAME", "unknown-node") # ???
-
 # Metriche Prometheus
+SERVICE_NAME = os.getenv("SERVICE_NAME", "data-collector-service")
+NODE_NAME = os.getenv("NODE_NAME", "data-collector-node")
+
 KAFKA_SENT_MESSAGES = prometheus_client.Counter(
     'kafka_messages_total',
     'Numero totale dei messaggi pubblicati dal data-collector sul topic to-alert-system',

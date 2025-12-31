@@ -5,8 +5,8 @@ metadata:
 data:
   routing.conf: |
     server {
-        listen 8080;
-        server_name my_apigw.com;
+        listen 80;
+        server_name localhost;
 
         location / {
             proxy_pass http://user-manager:5003;
@@ -22,8 +22,8 @@ data:
     }
 
     server {
-        listen 8443 ssl;
-        server_name my_apigw.com;
+        listen 443 ssl;
+        server_name localhost;
 
         ssl_certificate     /etc/nginx/ssl/nginx.selfsigned.crt;
         ssl_certificate_key /etc/nginx/ssl/nginx.selfsigned.key;

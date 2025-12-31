@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: alert-system
-  namespace: dsbd-hw3
   labels:
     app: alert-system
 spec:
@@ -17,7 +16,7 @@ spec:
     spec:
       containers:
         - name: alert-system
-          image: alert-system:hw3
+          image: docker.io/local/alert-system:v1
           env:
             - name: KAFKA_BROKER
               valueFrom:

@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kafka
-  namespace: dsbd-hw3
   labels:
     app: kafka
 spec:
@@ -52,7 +51,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: kafka
-  namespace: dsbd-hw3
 spec:
   selector:
     app: kafka

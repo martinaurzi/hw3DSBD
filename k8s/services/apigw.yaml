@@ -24,11 +24,23 @@ spec:
           volumeMounts:
             - name: nginx-config
               mountPath: /etc/nginx/conf.d
-          # se usi certificati self-signed nel container, puoi montarli qui
+            - name: nginx-htpasswd
+              mountPath: /etc/nginx/htpasswd
+              subPath: htpasswd
+            - name: nginx-certs
+              mountPath: /etc/nginx/ssl
+
       volumes:
         - name: nginx-config
           configMap:
             name: apigw-config
+        - name: nginx-htpasswd
+          secret:
+            secretName: apigw-htpasswd
+        - name: nginx-certs
+          secret:
+            secretName: apigw-tls
+
 ---
 apiVersion: v1
 kind: Service

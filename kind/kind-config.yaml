@@ -11,6 +11,3 @@ nodes:
         hostPort: 8443
         listenAddress: "127.0.0.1"
         protocol: TCP
-networking:
-  apiServerAddress: "127.0.0.1"
-  apiServerPort: 6443

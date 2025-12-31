@@ -30,8 +30,6 @@ services:
     networks:
       - app-net
     restart: always
-    networks:
-      - app-net
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0

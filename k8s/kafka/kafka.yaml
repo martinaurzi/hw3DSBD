@@ -14,13 +14,6 @@ spec:
       labels:
         app: kafka
     spec:
-      volumes:
-        - name: kafka-data
-          persistentVolumeClaim:
-            claimName: kafka-pvc
-        - name: kafka-config
-          emptyDir: {}
-
       initContainers:
         - name: init-kafka
           image: confluentinc/cp-kafka:7.4.0
@@ -61,12 +54,17 @@ spec:
                 --config /etc/kafka/server.properties \
                 --cluster-id $CLUSTER_ID \
                 --ignore-formatted
-
           volumeMounts:
             - name: kafka-config
               mountPath: /etc/kafka
             - name: kafka-data
               mountPath: /var/lib/kafka/data
+      volumes:
+        - name: kafka-data
+          persistentVolumeClaim:
+            claimName: kafka-pvc
+        - name: kafka-config
+          emptyDir: { }
 
       containers:
         - name: kafka
@@ -85,7 +83,6 @@ spec:
               mountPath: /etc/kafka
             - name: kafka-data
               mountPath: /var/lib/kafka/data
-
 ---
 apiVersion: v1
 kind: Service

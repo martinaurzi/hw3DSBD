@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: user-db-init-config
+data:
+  init_user_db.sql: |
+    CREATE TABLE IF NOT EXISTS users (
+      email VARCHAR(255) PRIMARY KEY,
+      nome VARCHAR(100) NOT NULL,
+      cognome VARCHAR(100) NOT NULL,
+      password_hash BINARY(60) NOT NULL
+    );

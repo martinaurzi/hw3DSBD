@@ -43,10 +43,15 @@ spec:
           volumeMounts:
             - name: user-db-storage
               mountPath: /var/lib/mysql
+            - name: init-user-db
+              mountPath: /docker-entrypoint-initdb.d
       volumes:
         - name: user-db-storage
           persistentVolumeClaim:
             claimName: user-db-pvc
+        - name: init-user-db
+          configMap:
+            name: user-db-init-config
 ---
 apiVersion: v1
 kind: Service

@@ -3,9 +3,21 @@ import os
 import json
 import logging
 
+import prometheus_client
+
 logging.basicConfig(
     level=logging.INFO,
     format='[%(asctime)s] [%(levelname)s] %(message)s',
+)
+
+# Metriche Prometheus
+SERVICE_NAME = os.getenv("SERVICE_NAME", "data-collector-service")
+NODE_NAME = os.getenv("NODE_NAME", "data-collector-node")
+
+KAFKA_SENT_ALERTS = prometheus_client.Counter(
+    'kafka_alert_total',
+    'Numero totale dei messaggi pubblicati dal alert-system sul topic to-notifier',
+    ["service", "node"]
 )
 
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:9092")
@@ -47,6 +59,10 @@ def send_to_notifier(message):
             json.dumps(message).encode("utf-8"),
             callback = delivery_report
         )
+
+        # Incremento la metrica Prometheus
+        KAFKA_SENT_ALERTS.labels(service=SERVICE_NAME, node=NODE_NAME).inc()
+
         producer.poll(0)
 
         logging.info(f"Messaggio inviato a {TOPIC_OUTPUT}: {message}")
@@ -111,4 +127,5 @@ def run_alert_system():
         logging.info("Risorse Kafka chiuse correttamente")
 
 if __name__ == "__main__":
+    prometheus_client.start_http_server(5004)
     run_alert_system()

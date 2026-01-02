@@ -23,3 +23,18 @@ spec:
                 configMapKeyRef:
                   name: app-config
                   key: KAFKA_BROKER
+          ports:
+            - containerPort: 5004
+              name: metrics
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alert-system
+spec:
+  selector:
+    app: alert-system
+  ports:
+    - name: metrics
+      port: 5004
+      targetPort: 5004

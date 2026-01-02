@@ -9,3 +9,7 @@ scrape_configs:
   - job_name: "data-collector"
     static_configs:
       - targets: ["data-collector:5002"]
+
+  - job_name: "alert-system"
+    static_configs:
+      - targets: [ "alert-system:5004" ]

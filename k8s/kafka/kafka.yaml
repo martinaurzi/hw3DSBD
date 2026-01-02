@@ -14,38 +14,78 @@ spec:
       labels:
         app: kafka
     spec:
+      volumes:
+        - name: kafka-data
+          persistentVolumeClaim:
+            claimName: kafka-pvc
+        - name: kafka-config
+          emptyDir: {}
+
+      initContainers:
+        - name: init-kafka
+          image: confluentinc/cp-kafka:7.4.0
+          command:
+            - /bin/bash
+            - -c
+            - |
+              echo "Generating cluster ID..."
+              CLUSTER_ID=$(/usr/bin/kafka-storage random-uuid)
+
+              echo "Cluster ID: $CLUSTER_ID"
+
+              cat <<EOF > /etc/kafka/server.properties
+              process.roles=broker,controller
+              node.id=1
+              
+              controller.quorum.voters=1@kafka:29093
+              controller.listener.names=CONTROLLER
+              
+              listeners=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
+              advertised.listeners=PLAINTEXT://kafka:9092
+              
+              listener.security.protocol.map=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+              listener.name.controller.controller.listener.protocol=PLAINTEXT
+              
+              inter.broker.listener.name=PLAINTEXT
+              
+              log.dirs=/var/lib/kafka/data/logs
+              metadata.log.dir=/var/lib/kafka/data/metadata
+              
+              offsets.topic.replication.factor=1
+              transaction.state.log.replication.factor=1
+              transaction.state.log.min.isr=1
+              EOF
+
+              echo "Formatting metadata log..."
+              /usr/bin/kafka-storage format \
+                --config /etc/kafka/server.properties \
+                --cluster-id $CLUSTER_ID \
+                --ignore-formatted
+
+          volumeMounts:
+            - name: kafka-config
+              mountPath: /etc/kafka
+            - name: kafka-data
+              mountPath: /var/lib/kafka/data
+
       containers:
         - name: kafka
           image: confluentinc/cp-kafka:7.4.0
-          env:
-            - name: KAFKA_PROCESS_ROLES
-              value: "broker,controller"
-            - name: KAFKA_NODE_ID
-              value: "1"
-            - name: CLUSTER_ID
-              value: "1JKPkjuxQl-f9KVqHSis5w"
-            - name: KAFKA_CLUSTER_ID
-              value: "1JKPkjuxQl-f9KVqHSis5w"
-            - name: KAFKA_CONTROLLER_LISTENER_NAMES
-              value: "CONTROLLER"
-            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
-              value: "1@kafka:29093"
-            - name: KAFKA_LISTENERS
-              value: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093"
-            - name: KAFKA_ADVERTISED_LISTENERS
-              value: "PLAINTEXT://kafka:9092"
-            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
-              value: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
-            - name: KAFKA_INTER_BROKER_LISTENER_NAME
-              value: "PLAINTEXT"
-            - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
-              value: "1"
-            - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
-              value: "1"
-            - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
-              value: "1"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              echo "Starting Kafka..."
+              /usr/bin/kafka-server-start /etc/kafka/server.properties
           ports:
             - containerPort: 9092
+            - containerPort: 29093
+          volumeMounts:
+            - name: kafka-config
+              mountPath: /etc/kafka
+            - name: kafka-data
+              mountPath: /var/lib/kafka/data
+
 ---
 apiVersion: v1
 kind: Service
@@ -55,5 +95,9 @@ spec:
   selector:
     app: kafka
   ports:
-    - port: 9092
+    - name: broker
+      port: 9092
       targetPort: 9092
+    - name: controller
+      port: 29093
+      targetPort: 29093

@@ -59,13 +59,6 @@ spec:
               mountPath: /etc/kafka
             - name: kafka-data
               mountPath: /var/lib/kafka/data
-      volumes:
-        - name: kafka-data
-          persistentVolumeClaim:
-            claimName: kafka-pvc
-        - name: kafka-config
-          emptyDir: { }
-
       containers:
         - name: kafka
           image: confluentinc/cp-kafka:7.4.0
@@ -83,6 +76,12 @@ spec:
               mountPath: /etc/kafka
             - name: kafka-data
               mountPath: /var/lib/kafka/data
+      volumes:
+        - name: kafka-data
+          persistentVolumeClaim:
+            claimName: kafka-pvc
+        - name: kafka-config
+          emptyDir: { }
 ---
 apiVersion: v1
 kind: Service

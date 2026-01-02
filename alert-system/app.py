@@ -3,6 +3,8 @@ import os
 import json
 import logging
 
+import time
+
 import prometheus_client
 
 logging.basicConfig(
@@ -17,6 +19,12 @@ NODE_NAME = os.getenv("NODE_NAME", "data-collector-node")
 KAFKA_SENT_ALERTS = prometheus_client.Counter(
     'kafka_alert_total',
     'Numero totale dei messaggi pubblicati dal alert-system sul topic to-notifier',
+    ["service", "node"]
+)
+
+KAFKA_PROCESSING_TIME = prometheus_client.Gauge(
+    'kafka_processing_time_seconds',
+    'Tempo di elaborazione di un messaggio Kafka',
     ["service", "node"]
 )
 
@@ -72,6 +80,8 @@ def send_to_notifier(message):
 # Funzione per processare il messaggio letto dal topic to-alert-system
 def process_message(msg_value):
     try:
+        start = time.time()
+
         data = json.loads(msg_value)
         email = data.get("email")
         airport = data.get("airport")
@@ -96,6 +106,11 @@ def process_message(msg_value):
                 "condition": f"Sotto soglia LOW ({num_flights} < {low_value})"
             }
             send_to_notifier(alert)
+
+        processing_time = time.time() - start
+
+        # Aggiorno la metrica Prometheus
+        KAFKA_PROCESSING_TIME.labels(service=SERVICE_NAME, node=NODE_NAME).set(processing_time)
 
     except Exception as e:
         logging.error(f"Errore nella elaborazione messaggio: {e}")

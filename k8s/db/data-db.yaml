@@ -43,10 +43,15 @@ spec:
           volumeMounts:
             - name: data-db-storage
               mountPath: /var/lib/mysql
+            - name: init-data-db
+              mountPath: /docker-entrypoint-initdb.d
       volumes:
         - name: data-db-storage
           persistentVolumeClaim:
             claimName: data-db-pvc
+        - name: init-data-db
+          configMap:
+            name: data-db-init-config
 ---
 apiVersion: v1
 kind: Service

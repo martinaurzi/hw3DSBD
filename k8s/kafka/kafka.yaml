@@ -17,14 +17,13 @@ spec:
       initContainers:
         - name: init-kafka
           image: confluentinc/cp-kafka:7.4.0
+          imagePullPolicy: IfNotPresent
           command:
             - /bin/bash
             - -c
             - |
               echo "Generating cluster ID..."
               CLUSTER_ID=$(/usr/bin/kafka-storage random-uuid)
-
-              echo "Cluster ID: $CLUSTER_ID"
 
               cat <<EOF > /etc/kafka/server.properties
               process.roles=broker,controller

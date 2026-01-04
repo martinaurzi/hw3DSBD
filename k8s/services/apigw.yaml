@@ -17,10 +17,10 @@ spec:
       containers:
         - name: apigw
           image: docker.io/local/apigw:v1
+          imagePullPolicy: Never
           ports:
             - containerPort: 80
             - containerPort: 443
-          imagePullPolicy: Never
           volumeMounts:
             - name: nginx-config
               mountPath: /etc/nginx/conf.d

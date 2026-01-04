@@ -17,6 +17,7 @@ spec:
       containers:
         - name: data-collector
           image: docker.io/local/data-collector:v1
+          imagePullPolicy: Never
           ports:
             - containerPort: 5002   # REST
             - containerPort: 50052  # gRPC

@@ -17,6 +17,7 @@ spec:
       containers:
         - name: alert-notifier
           image: docker.io/local/alert-notifier-system:v1
+          imagePullPolicy: Never
           env:
             - name: KAFKA_BROKER
               valueFrom:

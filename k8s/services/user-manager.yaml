@@ -17,6 +17,7 @@ spec:
       containers:
         - name: user-manager
           image: docker.io/local/user-manager:v1
+          imagePullPolicy: Never
           ports:
             - containerPort: 5003   # REST
             - containerPort: 50051  # gRPC

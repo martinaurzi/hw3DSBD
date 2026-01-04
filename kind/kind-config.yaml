@@ -11,7 +11,3 @@ nodes:
         hostPort: 8443 # Porta traffico HTTPS
         listenAddress: "127.0.0.1"
         protocol: TCP
-      - containerPort: 30090
-        hostPort: 9090 # Porta per metriche Prometheus
-        listenAddress: "127.0.0.1"
-        protocol: TCP
